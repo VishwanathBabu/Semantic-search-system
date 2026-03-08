@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
+from fastapi.responses import FileResponse  
 from pydantic import BaseModel
 import faiss
 import pickle
@@ -37,6 +38,10 @@ sem_cache = SemanticCache(similarity_threshold=0.88)
 
 class QueryRequest(BaseModel):
     query: str
+
+@app.get("/")
+async def serve_frontend():
+    return FileResponse("index.html")
 
 @app.post("/query")
 async def process_query(req: QueryRequest):
