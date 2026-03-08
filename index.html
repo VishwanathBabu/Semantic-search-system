@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trademarkia Semantic Search</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .search-container { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .centered { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; }
+        .top-aligned { min-height: 20vh; padding-top: 3rem; display: block; }
+        .fade-in { animation: fadeIn 0.4s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .result-box::-webkit-scrollbar { width: 8px; }
+        .result-box::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .result-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <main id="mainContainer" class="max-w-4xl mx-auto px-6 search-container centered">
+        
+        <div class="text-center mb-8" id="headerContent">
+            <h1 class="text-4xl font-semibold tracking-tight text-slate-900 mb-2">Semantic Search System</h1>
+            
+        </div>
+
+        <div class="relative max-w-2xl mx-auto w-full group">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <input type="text" id="searchInput" 
+                class="block w-full pl-11 pr-32 py-4 bg-white border border-slate-200 rounded-full text-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder-slate-400" 
+                placeholder="Enter Query : " 
+                onkeypress="handleKeyPress(event)">
+            <div class="absolute inset-y-0 right-2 flex items-center">
+                <button onclick="performSearch()" id="searchBtn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-medium transition-colors shadow-sm focus:outline-none">
+                    Search
+                </button>
+            </div>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center mt-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="text-slate-500 mt-2 text-sm">Searching vector space...</p>
+        </div>
+
+        <div id="resultsArea" class="hidden mt-8 max-w-3xl mx-auto w-full fade-in">
+            
+            <div class="flex items-center justify-between bg-white border border-slate-200 rounded-t-xl px-6 py-4 shadow-sm">
+                <div class="flex items-center space-x-3">
+                    <span id="cacheBadge" class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">
+                        Processing...
+                    </span>
+                    <span id="clusterBadge" class="text-sm text-slate-500">Cluster: -</span>
+                </div>
+                <div id="similarityDiv" class="hidden text-sm text-slate-500">
+                    Similarity: <span id="similarityScore" class="font-medium text-slate-700"></span>
+                </div>
+            </div>
+
+            <div id="matchedQueryDiv" class="hidden bg-slate-50 border-x border-slate-200 px-6 py-3 text-sm text-slate-600 italic">
+                Matched cached query: "<span id="matchedQueryText" class="font-medium text-slate-800"></span>"
+            </div>
+
+            <div class="bg-white border border-t-0 border-slate-200 rounded-b-xl shadow-sm p-6 result-box max-h-96 overflow-y-auto">
+                <p id="resultText" class="text-slate-700 leading-relaxed whitespace-pre-wrap font-serif"></p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = "http://localhost:8000/query";
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        }
+
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            const container = document.getElementById('mainContainer');
+            container.classList.remove('centered');
+            container.classList.add('top-aligned');
+            
+            document.getElementById('headerContent').style.display = 'none';
+            document.getElementById('resultsArea').classList.add('hidden');
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+
+                if (!response.ok) throw new Error("Server error");
+                
+                const data = await response.json();
+                displayResults(data);
+
+            } catch (error) {
+                alert("Failed to connect to the search engine. Is your FastAPI server running?");
+                console.error(error);
+                document.getElementById('loadingIndicator').classList.add('hidden');
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('resultsArea').classList.remove('hidden');
+
+            document.getElementById('resultText').innerText = data.result;
+            document.getElementById('clusterBadge').innerText = `Dominant Cluster: ${data.dominant_cluster}`;
+
+            const cacheBadge = document.getElementById('cacheBadge');
+            const matchDiv = document.getElementById('matchedQueryDiv');
+            const simDiv = document.getElementById('similarityDiv');
+
+            if (data.cache_hit) {
+                cacheBadge.innerText = "⚡ CACHE HIT";
+                cacheBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200";
+                
+                matchDiv.classList.remove('hidden');
+                document.getElementById('matchedQueryText').innerText = data.matched_query;
+
+                simDiv.classList.remove('hidden');
+                document.getElementById('similarityScore').innerText = (data.similarity_score * 100).toFixed(1) + '%';
+            } else {
+                cacheBadge.innerText = "🔍 DB SEARCH (MISS)";
+                cacheBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200";
+                
+                matchDiv.classList.add('hidden');
+                simDiv.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
